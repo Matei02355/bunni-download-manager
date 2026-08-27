@@ -1,0 +1,103 @@
+{
+  "name": "bunni-download-manager",
+  "version": "0.2.2",
+  "description": "A friendly segmented download manager for Windows and Linux.",
+  "main": "dist/main.js",
+  "author": "Bunni Download Manager contributors",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prebuild": "node scripts/generate-icons.mjs",
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run clean && tsc",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "test": "tsx --test tests/**/*.test.ts",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run dist:win",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:linux-dir": "npm run build && electron-builder --linux dir --x64",
+    "dist:linux-pacman": "bash scripts/build-arch-package.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.4",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  },
+  "build": {
+    "appId": "com.bunni.downloadmanager",
+    "productName": "Bunni Download Manager",
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    },
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "src/renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "protocols": [
+      {
+        "name": "Bunni Download Link",
+        "schemes": [
+          "bunni"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Bunni-Download-Manager-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Network",
+      "executableName": "bunni-download-manager",
+      "maintainer": "Bunni Download Manager contributors",
+      "synopsis": "Segmented and resumable desktop download manager",
+      "description": "Bunni Download Manager provides confirmation, segmented transfers, pause and resume, and a companion Chrome extension.",
+      "artifactName": "bunni-download-manager-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Bunni Download Manager",
+      "uninstallDisplayName": "Bunni Download Manager"
+    }
+  }
+}

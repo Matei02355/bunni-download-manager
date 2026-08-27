@@ -1,0 +1,78 @@
+#!/usr/bin/bash
+set -eu
+
+readonly extension_dir='/usr/share/bunni-download-manager/extension'
+open_folder=1
+open_extensions_page=0
+print_only=0
+
+usage() {
+  cat <<'EOF'
+Usage: bunni-extension-folder [OPTION]
+
+Print and open Bunni's unpacked Chrome/Chromium extension directory.
+
+Options:
+  --chrome       also open chrome://extensions in an installed Chromium browser
+  --print-only   print the directory without opening anything
+  -h, --help     show this help
+EOF
+}
+
+for argument in "$@"; do
+  case "${argument}" in
+    --chrome)
+      open_extensions_page=1
+      ;;
+    --print-only)
+      print_only=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'bunni-extension-folder: unknown option: %s\n' "${argument}" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if (( print_only )); then
+  open_folder=0
+  open_extensions_page=0
+fi
+
+printf '%s\n' "${extension_dir}"
+
+if [[ ! -f "${extension_dir}/manifest.json" ]]; then
+  printf 'bunni-extension-folder: extension files are missing; reinstall bunni-download-manager.\n' >&2
+  exit 1
+fi
+
+if (( open_folder )); then
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "${extension_dir}" >/dev/null 2>&1 &
+  elif command -v gio >/dev/null 2>&1; then
+    gio open "${extension_dir}" >/dev/null 2>&1 &
+  else
+    printf 'No graphical file opener was found. Open the printed path manually.\n' >&2
+  fi
+fi
+
+if (( open_extensions_page )); then
+  browser=''
+  for candidate in google-chrome-stable google-chrome chromium chromium-browser brave-browser brave vivaldi-stable vivaldi; do
+    if command -v "${candidate}" >/dev/null 2>&1; then
+      browser="${candidate}"
+      break
+    fi
+  done
+
+  if [[ -n "${browser}" ]]; then
+    "${browser}" 'chrome://extensions/' >/dev/null 2>&1 &
+  else
+    printf 'No supported Chrome/Chromium executable was found. Open chrome://extensions manually.\n' >&2
+  fi
+fi

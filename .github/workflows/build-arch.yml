@@ -1,0 +1,51 @@
+name: Build CachyOS and Arch Linux package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-arch-package:
+    name: Build x86_64 pacman package
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: archlinux:base-devel
+
+    steps:
+      - name: Install Arch build dependencies
+        shell: bash
+        run: >-
+          pacman -Syu --needed --noconfirm
+          git
+          libsecret
+          nodejs
+          npm
+          python
+
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Build application and pacman package as an unprivileged user
+        shell: bash
+        run: |
+          useradd --create-home --shell /bin/bash bunni-builder
+          chown -R bunni-builder:bunni-builder "${GITHUB_WORKSPACE}"
+          runuser --user bunni-builder -- \
+            bash -c 'cd -- "$1" && bash scripts/build-arch-package.sh' \
+            bash "${GITHUB_WORKSPACE}"
+
+      - name: Upload pacman package
+        uses: actions/upload-artifact@v7
+        with:
+          name: bunni-download-manager-arch-x86_64
+          path: release/bunni-download-manager-*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 14

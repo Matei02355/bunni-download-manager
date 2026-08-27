@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bunni Download Manager settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="hero">
+        <img src="icons/bunni.svg" width="76" height="76" alt="">
+        <div>
+          <span class="kicker">Chrome extension</span>
+          <h1>Bunni settings</h1>
+          <p>Choose how many parallel parts Bunni should request and whether Chrome downloads should hop over automatically.</p>
+        </div>
+      </header>
+
+      <section class="status-panel" aria-labelledby="connectionHeading">
+        <div class="status-copy">
+          <span id="statusDot" class="status-dot is-checking" aria-hidden="true"></span>
+          <div>
+            <h2 id="connectionHeading">Desktop app connection</h2>
+            <p id="healthText" role="status" aria-live="polite">Checking the saved local port…</p>
+          </div>
+        </div>
+        <button id="healthButton" class="ghost-button" type="button">Check again</button>
+      </section>
+
+      <form id="settingsForm" class="settings-card">
+        <section class="setting-row">
+          <div class="setting-copy">
+            <label for="portNumber">Desktop app port</label>
+            <p>Use the same Local server port shown in Bunni’s desktop settings.</p>
+          </div>
+          <div class="port-control">
+            <span>127.0.0.1:</span>
+            <input id="portNumber" type="number" min="1024" max="65535" step="1" value="17865" inputmode="numeric">
+          </div>
+        </section>
+
+        <section class="setting-row divider">
+          <div class="setting-copy">
+            <label for="segmentsRange">Download parts</label>
+            <p>Bunni can request different byte ranges in parallel when the server supports it.</p>
+          </div>
+          <div class="segment-control">
+            <input id="segmentsRange" type="range" min="1" max="32" step="1" value="8">
+            <input id="segmentsNumber" type="number" min="1" max="32" step="1" value="8" aria-label="Number of download parts">
+          </div>
+        </section>
+
+        <section class="setting-row divider">
+          <div class="setting-copy">
+            <label for="autoIntercept">Automatically catch Chrome downloads</label>
+            <p>When enabled, Bunni pauses a new HTTP(S) download and shows a confirmation in the desktop app. Start and Later remove Chrome’s copy; Cancel or an error resumes it.</p>
+          </div>
+          <label class="switch">
+            <input id="autoIntercept" type="checkbox">
+            <span class="switch-track" aria-hidden="true"><span></span></span>
+            <span class="sr-only">Automatically catch Chrome downloads</span>
+          </label>
+        </section>
+
+        <section class="setting-row divider gofile-row" aria-labelledby="gofileHeading">
+          <div class="setting-copy">
+            <span class="permission-kicker">Optional site access</span>
+            <h2 id="gofileHeading">GoFile browser credentials</h2>
+            <p>Bunni asks only for GoFile access. When you hand off a GoFile download, it reads cookies matching that exact URL and sends them to the local desktop app for that request.</p>
+            <p>GoFile transfers use one connection for reliability because concurrent ranges can trigger its rate limit. Your general Download parts setting still applies to other sites.</p>
+            <p id="gofilePermissionStatus" class="permission-status" role="status" aria-live="polite">Checking GoFile access…</p>
+          </div>
+          <button id="gofilePermissionButton" class="permission-button" type="button">Enable GoFile support</button>
+        </section>
+
+        <aside class="safety-note">
+          <span aria-hidden="true">☂</span>
+          <p>If Bunni cannot safely preserve a protected download’s credentials, the intercepted download is resumed in Chrome so you do not lose it.</p>
+        </aside>
+
+        <div class="form-footer">
+          <p id="saveStatus" role="status" aria-live="polite"></p>
+          <button id="saveButton" class="primary-button" type="submit">Save settings</button>
+        </div>
+      </form>
+
+      <footer>
+        <p>Bunni talks only to <code id="serviceAddress">http://127.0.0.1:17865</code>. Links must use HTTP or HTTPS.</p>
+      </footer>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

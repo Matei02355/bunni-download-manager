@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Bunni Download Manager</title>
+  <defs>
+    <linearGradient id="bg" x1="18" y1="12" x2="105" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#826BE0"/>
+      <stop offset="1" stop-color="#5B40B4"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="60" fill="url(#bg)"/>
+  <ellipse cx="42" cy="37" rx="14" ry="29" transform="rotate(-13 42 37)" fill="#FFF9F2"/>
+  <ellipse cx="86" cy="37" rx="14" ry="29" transform="rotate(13 86 37)" fill="#FFF9F2"/>
+  <ellipse cx="42" cy="37" rx="6.5" ry="20" transform="rotate(-13 42 37)" fill="#FFB6B3"/>
+  <ellipse cx="86" cy="37" rx="6.5" ry="20" transform="rotate(13 86 37)" fill="#FFB6B3"/>
+  <ellipse cx="64" cy="75" rx="39" ry="35" fill="#FFF9F2"/>
+  <circle cx="49" cy="70" r="4.5" fill="#342D45"/>
+  <circle cx="79" cy="70" r="4.5" fill="#342D45"/>
+  <path d="M58 80c3.4-3.2 8.6-3.2 12 0-1 5.8-11 5.8-12 0Z" fill="#F0808B"/>
+  <path d="M64 85v7m0 0c-4.2 0-7.2-1.6-9-4.6M64 92c4.2 0 7.2-1.6 9-4.6" fill="none" stroke="#6A5A6D" stroke-width="3" stroke-linecap="round"/>
+  <path d="m92 86 7 7 14-19" fill="none" stroke="#FFBF8E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

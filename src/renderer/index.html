@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'"
+    >
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Bunni Download Manager</title>
+    <link rel="icon" href="bunni-mark.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <script src="renderer.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#main-content" aria-label="Bunni Download Manager home">
+          <span class="brand-mark"><img src="bunni-mark.svg" alt=""></span>
+          <span class="brand-copy">
+            <span class="brand-name">Bunni</span>
+            <span class="brand-product">Download Manager</span>
+          </span>
+        </a>
+
+        <div class="engine-summary" aria-live="polite" aria-atomic="true">
+          <span class="signal" id="engineSignal" aria-hidden="true"></span>
+          <span>
+            <strong id="engineStatus">Getting ready…</strong>
+            <small id="engineDetail">Connecting to download engine</small>
+          </span>
+        </div>
+
+        <button class="button button-quiet settings-trigger" id="openSettings" type="button">
+          <span class="settings-glyph" aria-hidden="true">⚙</span>
+          <span>Settings</span>
+        </button>
+      </header>
+
+      <main id="main-content">
+        <section class="capture-card" aria-labelledby="capture-title">
+          <div class="capture-heading">
+            <p class="eyebrow">New download</p>
+            <h1 id="capture-title">Catch it. Split it. Get&nbsp;it.</h1>
+            <p>Bunni opens multiple lanes for big files and brings them home in one piece.</p>
+          </div>
+
+          <form id="addForm" novalidate>
+            <div class="url-composer">
+              <label class="visually-hidden" for="urlInput">Download URL</label>
+              <span class="link-glyph" aria-hidden="true">↗</span>
+              <input
+                id="urlInput"
+                name="url"
+                type="url"
+                inputmode="url"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Paste a download link…"
+                required
+              >
+              <button class="button button-accent add-button" id="addButton" type="submit">
+                <span>Add download</span>
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            <p class="field-message" id="urlMessage" aria-live="polite"></p>
+
+            <div class="capture-options">
+              <div class="segment-option">
+                <label class="switch-label" for="segmentsEnabled">
+                  <input id="segmentsEnabled" type="checkbox" checked>
+                  <span class="switch" aria-hidden="true"></span>
+                  <span>
+                    <strong>Multi-part boost</strong>
+                    <small>Fetch in parallel lanes</small>
+                  </span>
+                </label>
+                <label class="segment-count" for="segmentCount">
+                  <span>Parts</span>
+                  <input id="segmentCount" type="number" min="1" max="32" step="1" value="8">
+                </label>
+              </div>
+
+              <div class="destination-option">
+                <span class="destination-icon" aria-hidden="true">⌄</span>
+                <span class="destination-copy">
+                  <small>Save to</small>
+                  <strong id="destinationPath" title="Use the default download folder">Default download folder</strong>
+                </span>
+                <button class="button button-on-dark" id="chooseDestination" type="button">Choose</button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <section class="downloads-panel" id="downloadsPanel" aria-labelledby="downloads-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow eyebrow-dark">Your queue</p>
+              <div class="heading-line">
+                <h2 id="downloads-title">Downloads</h2>
+                <span class="count-pill" id="visibleCount" aria-label="0 downloads">0</span>
+              </div>
+            </div>
+            <div class="session-speed" aria-live="polite">
+              <span class="speed-icon" aria-hidden="true">⇣</span>
+              <span>
+                <small>Combined speed</small>
+                <strong id="combinedSpeed">0 B/s</strong>
+              </span>
+            </div>
+          </div>
+
+          <div class="queue-toolbar">
+            <nav class="filter-tabs" aria-label="Filter downloads">
+              <button class="filter-tab is-active" type="button" data-filter="active" aria-pressed="true">
+                Active <span id="activeCount">0</span>
+              </button>
+              <button class="filter-tab" type="button" data-filter="completed" aria-pressed="false">
+                Completed <span id="completedCount">0</span>
+              </button>
+              <button class="filter-tab" type="button" data-filter="all" aria-pressed="false">
+                All <span id="allCount">0</span>
+              </button>
+            </nav>
+
+            <label class="search-box" for="searchInput">
+              <span aria-hidden="true">⌕</span>
+              <span class="visually-hidden">Search downloads</span>
+              <input id="searchInput" type="search" placeholder="Search downloads" autocomplete="off">
+            </label>
+          </div>
+
+          <div class="table-frame">
+            <table class="download-table">
+              <caption class="visually-hidden">Download queue and controls</caption>
+              <thead>
+                <tr>
+                  <th scope="col">File</th>
+                  <th scope="col">Progress</th>
+                  <th scope="col">Transfer</th>
+                  <th scope="col">Status</th>
+                  <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody id="downloadRows"></tbody>
+            </table>
+
+            <div class="empty-state" id="emptyState" hidden>
+              <div class="empty-illustration" aria-hidden="true">
+                <img src="bunni-mark.svg" alt="">
+                <span>↓</span>
+              </div>
+              <h3 id="emptyTitle">The runway is clear</h3>
+              <p id="emptyMessage">Paste a link above and Bunni will take it from there.</p>
+              <button class="button button-primary" id="focusUrl" type="button">Add your first download</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <span><span class="footer-dot" aria-hidden="true"></span> Browser bridge listening</span>
+        <span id="footerDirectory">Saving to your default download folder</span>
+      </footer>
+    </div>
+
+    <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settings-title" aria-describedby="settings-description">
+      <form id="settingsForm" novalidate>
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow eyebrow-dark">Preferences</p>
+            <h2 id="settings-title">Tune your Bunni</h2>
+            <p id="settings-description">Set the pace for downloads and browser capture.</p>
+          </div>
+          <button class="icon-button" id="closeSettings" type="button" aria-label="Close settings">×</button>
+        </header>
+
+        <div class="dialog-body">
+          <section class="settings-section" aria-labelledby="performance-heading">
+            <div class="section-title">
+              <span class="section-number" aria-hidden="true">01</span>
+              <div>
+                <h3 id="performance-heading">Performance</h3>
+                <p>Balance speed with network load.</p>
+              </div>
+            </div>
+            <div class="settings-grid">
+              <label class="setting-field" for="defaultSegments">
+                <span>Default parts</span>
+                <small>Parallel connections per file</small>
+                <input id="defaultSegments" name="defaultSegments" type="number" min="1" max="32" step="1" required>
+              </label>
+              <label class="setting-field" for="maxConcurrent">
+                <span>Simultaneous downloads</span>
+                <small>Files downloading at once</small>
+                <input id="maxConcurrent" name="maxConcurrent" type="number" min="1" max="10" step="1" required>
+              </label>
+            </div>
+            <label class="switch-label notification-setting" for="notifyOnComplete">
+              <input id="notifyOnComplete" name="notifyOnComplete" type="checkbox">
+              <span class="switch" aria-hidden="true"></span>
+              <span>
+                <strong>Completion notifications</strong>
+                <small>Show a Windows notification when a download finishes</small>
+              </span>
+            </label>
+          </section>
+
+          <section class="settings-section" aria-labelledby="storage-heading">
+            <div class="section-title">
+              <span class="section-number" aria-hidden="true">02</span>
+              <div>
+                <h3 id="storage-heading">Storage</h3>
+                <p>Choose where finished files land.</p>
+              </div>
+            </div>
+            <label class="setting-label" for="settingsDirectory">Download directory</label>
+            <div class="directory-field">
+              <input id="settingsDirectory" name="downloadDirectory" type="text" readonly>
+              <button class="button button-secondary" id="chooseSettingsDirectory" type="button">Browse</button>
+            </div>
+          </section>
+
+          <section class="settings-section extension-settings" aria-labelledby="extension-heading">
+            <div class="section-title">
+              <span class="section-number" aria-hidden="true">03</span>
+              <div>
+                <h3 id="extension-heading">Chrome extension</h3>
+                <p>Let the browser hand links to Bunni.</p>
+              </div>
+            </div>
+            <div class="extension-row">
+              <label class="setting-field compact-field" for="extensionPort">
+                <span>Local server port</span>
+                <input id="extensionPort" name="serverPort" type="number" min="1024" max="65535" step="1" required>
+              </label>
+              <button class="button button-secondary" id="openExtensionFolder" type="button" hidden>
+                Open extension folder
+              </button>
+            </div>
+            <p class="extension-hint">Load the extension folder in <strong>chrome://extensions</strong> with Developer mode enabled.</p>
+          </section>
+        </div>
+
+        <p class="dialog-message" id="settingsMessage" aria-live="polite"></p>
+        <footer class="dialog-actions">
+          <button class="button button-quiet" id="cancelSettings" type="button">Cancel</button>
+          <button class="button button-primary" id="saveSettings" type="submit">Save changes</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="capture-dialog" id="captureDialog" aria-labelledby="capture-dialog-title" aria-describedby="capture-dialog-subtitle">
+      <form id="captureForm" novalidate>
+        <header class="capture-dialog-header">
+          <div class="capture-dialog-brand" aria-hidden="true">
+            <img src="bunni-mark.svg" alt="">
+          </div>
+          <div>
+            <p class="eyebrow">Browser download</p>
+            <h2 id="capture-dialog-title">Download information</h2>
+            <p id="capture-dialog-subtitle">Check the file details before Bunni starts.</p>
+          </div>
+          <button class="icon-button capture-dialog-close" id="captureClose" type="button" aria-label="Cancel this browser download">×</button>
+        </header>
+
+        <div class="capture-dialog-body">
+          <label class="capture-dialog-field capture-url-field" for="captureUrl">
+            <span>URL</span>
+            <input id="captureUrl" type="text" readonly>
+          </label>
+
+          <div class="capture-dialog-grid">
+            <label class="capture-dialog-field" for="captureCategory">
+              <span>Category</span>
+              <select id="captureCategory">
+                <option value="compressed">Compressed</option>
+                <option value="programs">Programs</option>
+                <option value="video">Video</option>
+                <option value="music">Music</option>
+                <option value="documents">Documents</option>
+                <option value="general">General</option>
+              </select>
+            </label>
+            <div class="capture-file-summary" aria-live="polite">
+              <span class="capture-file-icon" id="captureFileIcon" aria-hidden="true">FILE</span>
+              <span>
+                <small>File size</small>
+                <strong id="captureFileSize">Checking…</strong>
+              </span>
+            </div>
+          </div>
+
+          <label class="capture-dialog-field" for="captureFileName">
+            <span>File name</span>
+            <input id="captureFileName" type="text" maxlength="240" autocomplete="off" spellcheck="false" required>
+          </label>
+
+          <div class="capture-dialog-field">
+            <span id="capture-directory-label">Save to</span>
+            <div class="capture-directory-row">
+              <input id="captureDirectory" type="text" aria-labelledby="capture-directory-label" readonly required>
+              <button class="button button-secondary" id="captureBrowse" type="button">Browse…</button>
+            </div>
+          </div>
+
+          <label class="capture-remember" for="captureRememberFolder">
+            <input id="captureRememberFolder" type="checkbox">
+            <span>Remember this folder for the selected category</span>
+          </label>
+
+        </div>
+
+        <p class="dialog-message capture-dialog-message" id="captureMessage" role="alert" aria-live="polite"></p>
+        <footer class="capture-dialog-actions">
+          <button class="button button-quiet" id="captureLater" type="button">Later</button>
+          <button class="button button-primary capture-start" id="captureStart" type="submit">Start download</button>
+          <button class="button button-secondary" id="captureCancel" type="button">Cancel</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+      <div class="confirm-icon" aria-hidden="true">!</div>
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p id="confirm-message"></p>
+      <label class="delete-file-option" id="deleteFileOption" for="deleteFileCheckbox" hidden>
+        <input id="deleteFileCheckbox" type="checkbox">
+        <span>Also delete the downloaded file</span>
+      </label>
+      <div class="confirm-actions">
+        <button class="button button-quiet" id="confirmCancel" type="button">Keep it</button>
+        <button class="button button-danger" id="confirmAccept" type="button">Continue</button>
+      </div>
+    </dialog>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="false"></div>
+  </body>
+</html>

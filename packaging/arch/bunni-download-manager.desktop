@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bunni Download Manager
+GenericName=Download Manager
+Comment=Catch, split, and manage file downloads
+TryExec=bunni-download-manager
+Exec=bunni-download-manager %U
+Icon=bunni-download-manager
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=download;transfer;browser;Chrome;Chromium;
+MimeType=x-scheme-handler/bunni;
+StartupNotify=true
+StartupWMClass=bunni-download-manager
+X-GNOME-UsesNotifications=true

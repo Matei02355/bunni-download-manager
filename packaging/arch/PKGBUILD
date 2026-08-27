@@ -1,0 +1,176 @@
+# Maintainer: Bunni Download Manager contributors
+
+pkgname=bunni-download-manager
+pkgver=0.2.2
+pkgrel=1
+pkgdesc='Friendly segmented download manager with optional Chrome/Chromium integration'
+arch=('x86_64')
+license=('MIT')
+depends=(
+  'alsa-lib'
+  'at-spi2-core'
+  'cairo'
+  'dbus'
+  'expat'
+  'gcc-libs'
+  'glib2'
+  'glibc'
+  'gtk3'
+  'libcups'
+  'libdrm'
+  'libsecret'
+  'libx11'
+  'libxcb'
+  'libxcomposite'
+  'libxdamage'
+  'libxext'
+  'libxfixes'
+  'libxkbcommon'
+  'libxrandr'
+  'libxss'
+  'mesa'
+  'nspr'
+  'nss'
+  'pango'
+  'systemd-libs'
+  'xdg-utils'
+)
+optdepends=(
+  'google-chrome: use the optional Bunni Chrome extension'
+  'chromium: use the optional Bunni Chromium extension'
+  'gnome-keyring: encrypt authenticated-download credentials through Secret Service'
+  'kwallet: encrypt authenticated-download credentials on KDE Plasma'
+  'libnotify: desktop download notifications'
+)
+install="${pkgname}.install"
+options=('!strip' '!debug' '!emptydirs')
+
+_prebuilt="${pkgname}-${pkgver}-linux-x64.tar.gz"
+source=(
+  "${_prebuilt}"
+  "${pkgname}.desktop"
+  "${pkgname}.svg"
+  'bunni-extension-folder'
+  'LICENSE'
+  "${pkgname}.install"
+)
+noextract=("${_prebuilt}")
+
+# The prebuilt archive is generated locally from Electron Builder output and
+# therefore has no repository-stable digest. The remaining packaging inputs
+# are checksummed. Release automation should archive and publish the exact
+# prebuilt artifact alongside the resulting package.
+sha256sums=(
+  'SKIP'
+  '57bb0c761e46e2588bfc66134c02a1ad6b52d6367add962779ab46c7883fc8c0'
+  'e9032c4ec73d9bd2f2a83d7ccde9a591fa530ce5a0553405d6061ca1c70b744d'
+  'efcfed54501367ff31578d54ba986cadee0ddae3448bf41bc1879b7930daf8ce'
+  '13f2c9c1dd2e905af81ac3662bfcca8dc41137ce8d60bdfd0f2515e10d190a41'
+  'b0a5319e2dda647bfd50926cd099e4193e808a6fdb8a9f2e6652633de937f543'
+)
+
+prepare() {
+  local elf_machine elf_magic link link_target member resolved
+
+  rm -rf -- "${srcdir}/bunni-app" "${srcdir}/bunni-linux-unpacked"
+  install -d "${srcdir}/bunni-app"
+
+  # Do not permit an archive member to escape the extraction directory.
+  while IFS= read -r member; do
+    if [[ "${member}" == /* || "${member}" =~ (^|/)\.\.(/|$) ]]; then
+      error "Unsafe path in ${_prebuilt}: ${member}"
+      return 1
+    fi
+  done < <(bsdtar -tf "${srcdir}/${_prebuilt}")
+
+  bsdtar -xf "${srcdir}/${_prebuilt}" -C "${srcdir}/bunni-app"
+
+  # prepare-prebuilt.sh writes app files at archive root. Also tolerate a
+  # conventional single linux-unpacked directory for hand-created archives.
+  if [[ ! -f "${srcdir}/bunni-app/bunni-download-manager" &&
+        -f "${srcdir}/bunni-app/linux-unpacked/bunni-download-manager" ]]; then
+    mv "${srcdir}/bunni-app/linux-unpacked" "${srcdir}/bunni-linux-unpacked"
+    rm -rf -- "${srcdir}/bunni-app"
+    mv "${srcdir}/bunni-linux-unpacked" "${srcdir}/bunni-app"
+  fi
+
+  [[ -f "${srcdir}/bunni-app/bunni-download-manager" ]] || {
+    error 'The prebuilt archive does not contain bunni-download-manager at its root.'
+    return 1
+  }
+  [[ -f "${srcdir}/bunni-app/resources/extension/manifest.json" ]] || {
+    error 'The prebuilt archive does not contain resources/extension/manifest.json.'
+    return 1
+  }
+
+  elf_magic="$(od -An -tx1 -N4 "${srcdir}/bunni-app/bunni-download-manager" | tr -d '[:space:]')"
+  elf_machine="$(od -An -tx1 -j18 -N2 "${srcdir}/bunni-app/bunni-download-manager" | tr -d '[:space:]')"
+  [[ "${elf_magic}" == '7f454c46' && "${elf_machine}" == '3e00' ]] || {
+    error 'bunni-download-manager is not an x86-64 ELF executable.'
+    return 1
+  }
+
+  # Archive inputs copied from NTFS may lose their Unix mode bits.
+  chmod 0755 "${srcdir}/bunni-app/bunni-download-manager"
+  [[ ! -f "${srcdir}/bunni-app/chrome_crashpad_handler" ]] || \
+    chmod 0755 "${srcdir}/bunni-app/chrome_crashpad_handler"
+  [[ ! -f "${srcdir}/bunni-app/chrome-sandbox" ]] || \
+    chmod 0755 "${srcdir}/bunni-app/chrome-sandbox"
+
+  # Preserve legitimate relative symlinks within the Electron distribution,
+  # but reject links that would resolve outside the installed application.
+  while IFS= read -r -d '' link; do
+    link_target="$(readlink -- "${link}")"
+    if [[ "${link_target}" == /* ]]; then
+      error "Absolute symlink is not allowed: ${link} -> ${link_target}"
+      return 1
+    fi
+    resolved="$(realpath -m -- "$(dirname -- "${link}")/${link_target}")"
+    case "${resolved}" in
+      "${srcdir}/bunni-app"|"${srcdir}/bunni-app"/*) ;;
+      *)
+        error "Symlink escapes the application root: ${link} -> ${link_target}"
+        return 1
+        ;;
+    esac
+  done < <(find "${srcdir}/bunni-app" -type l -print0)
+}
+
+package() {
+  local appdir="${pkgdir}/opt/bunni-download-manager"
+  local extensiondir="${pkgdir}/usr/share/bunni-download-manager/extension"
+
+  install -d "${appdir}"
+  cp -a -- "${srcdir}/bunni-app/." "${appdir}/"
+
+  # Normalize ownership and remove write access for non-root users while
+  # retaining the executable bits shipped by Electron Builder.
+  chown -hR 0:0 "${appdir}"
+  chmod -R u=rwX,go=rX "${appdir}"
+
+  # CachyOS and stock Arch kernels support Electron's user-namespace sandbox.
+  # Do not introduce an unchecked setuid-root binary from a local prebuilt.
+  if [[ -f "${appdir}/chrome-sandbox" ]]; then
+    chmod 0755 "${appdir}/chrome-sandbox"
+  fi
+
+  install -d "${pkgdir}/usr/bin"
+  ln -s '/opt/bunni-download-manager/bunni-download-manager' \
+    "${pkgdir}/usr/bin/bunni-download-manager"
+
+  install -Dm644 "${srcdir}/${pkgname}.desktop" \
+    "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+  install -Dm644 "${srcdir}/${pkgname}.svg" \
+    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
+  install -Dm755 "${srcdir}/bunni-extension-folder" \
+    "${pkgdir}/usr/bin/bunni-extension-folder"
+  install -Dm644 "${srcdir}/LICENSE" \
+    "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+
+  # Chrome/Chromium users load this directory manually. Keeping the browser
+  # copy separate from /opt gives it a stable path across app upgrades.
+  install -d "${extensiondir}"
+  cp -a -- "${srcdir}/bunni-app/resources/extension/." "${extensiondir}/"
+  chown -hR 0:0 "${pkgdir}/usr/share/bunni-download-manager"
+  chmod -R u=rwX,go=rX "${pkgdir}/usr/share/bunni-download-manager"
+}

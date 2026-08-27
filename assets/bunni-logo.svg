@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Bunni Download Manager</title>
+  <desc id="description">A smiling rabbit inside a download arrow</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7557ff"/>
+      <stop offset="1" stop-color="#24c9a5"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="62" fill="url(#bg)"/>
+  <path d="M78 94C60 56 72 30 88 35c14 4 25 35 28 57m62 2c18-38 6-64-10-59-14 4-25 35-28 57" fill="#fff" fill-opacity=".94" stroke="#352b70" stroke-width="8" stroke-linecap="round"/>
+  <path d="M62 128c0-38 29-67 66-67s66 29 66 67c0 42-29 73-66 73s-66-31-66-73Z" fill="#fff"/>
+  <circle cx="103" cy="125" r="7" fill="#352b70"/>
+  <circle cx="153" cy="125" r="7" fill="#352b70"/>
+  <path d="M118 143h20l-10 10-10-10Z" fill="#ff739c" stroke="#352b70" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M128 154v15m0 0c-10 0-16-4-19-10m19 10c10 0 16-4 19-10" fill="none" stroke="#352b70" stroke-width="5" stroke-linecap="round"/>
+  <path d="M128 180v51m0 0-26-25m26 25 26-25" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

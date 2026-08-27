@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bunni Download Manager</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <img src="icons/bunni.svg" width="46" height="46" alt="">
+          <div>
+            <h1>Bunni</h1>
+            <p>Quick-link catcher</p>
+          </div>
+        </div>
+        <button id="settingsButton" class="icon-button" type="button" aria-label="Open Bunni settings" title="Settings">⚙</button>
+      </header>
+
+      <button id="healthButton" class="health-card is-checking" type="button" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>
+          <strong id="healthTitle">Desktop app: CHECKING</strong>
+          <small id="healthDetail">Tap to check again</small>
+        </span>
+      </button>
+
+      <section id="captureCard" class="capture-card is-off" aria-labelledby="captureTitle">
+        <div class="capture-copy">
+          <span class="capture-icon" aria-hidden="true">↯</span>
+          <span>
+            <strong id="captureTitle">Automatic capture: CHECKING</strong>
+            <small id="captureDetail">Loading your saved choice.</small>
+          </span>
+        </div>
+        <label class="mini-switch">
+          <input id="captureToggle" type="checkbox" aria-label="Automatically catch Chrome downloads">
+          <span aria-hidden="true"></span>
+        </label>
+        <button id="gofileOptionsButton" class="gofile-status" type="button">
+          <span id="gofileAccessDot" aria-hidden="true"></span>
+          <span id="gofileAccessText">GoFile access: CHECKING</span>
+        </button>
+      </section>
+
+      <aside id="gofileWarning" class="gofile-warning" aria-labelledby="gofileWarningTitle" hidden>
+        <span class="gofile-warning-kicker">GoFile tab detected</span>
+        <strong id="gofileWarningTitle">GoFile access is OFF</strong>
+        <p id="gofileWarningText">Enable access only for GoFile, then click Download again. Bunni will use one connection to avoid GoFile rate limits.</p>
+        <button id="gofileEnableButton" class="gofile-enable-button" type="button">Enable GoFile access</button>
+      </aside>
+
+      <section class="card current-card" aria-labelledby="currentHeading">
+        <div class="card-heading">
+          <div>
+            <span class="eyebrow">Current tab</span>
+            <h2 id="currentHeading">Catch this page</h2>
+          </div>
+          <span id="segmentBadge" class="segment-badge">8 parts</span>
+        </div>
+        <p id="currentTabLabel" class="url-preview">Finding the active tab…</p>
+        <button id="currentButton" class="primary-button" type="button" disabled>
+          <span aria-hidden="true">↓</span>
+           Review current tab in Bunni
+        </button>
+      </section>
+
+      <section class="card" aria-labelledby="linkHeading">
+        <span class="eyebrow">Any web link</span>
+        <h2 id="linkHeading">Paste a URL</h2>
+        <form id="urlForm" novalidate>
+          <label class="sr-only" for="urlInput">HTTP or HTTPS URL</label>
+          <input id="urlInput" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/file.zip" required>
+           <button id="sendButton" class="secondary-button" type="submit">Review in Bunni</button>
+        </form>
+      </section>
+
+      <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+      <p class="tip"><span aria-hidden="true">✦</span> Tip: right-click links, images, audio, or video on a page.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

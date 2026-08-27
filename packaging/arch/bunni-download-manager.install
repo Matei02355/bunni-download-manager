@@ -1,0 +1,36 @@
+_bunni_extension_help() {
+  cat <<'EOF'
+
+Bunni Download Manager was installed.
+
+To load its Chrome/Chromium extension manually:
+  1. Run: bunni-extension-folder --chrome
+  2. In chrome://extensions, enable Developer mode.
+  3. Click "Load unpacked".
+  4. Select: /usr/share/bunni-download-manager/extension
+
+The package does not install or force-enable the browser extension.
+After an extension update, use the Reload button on chrome://extensions.
+
+Authenticated downloads need a running secure keyring. Install and configure
+gnome-keyring or KWallet if Bunni reports that credential encryption is
+unavailable.
+EOF
+}
+
+post_install() {
+  _bunni_extension_help
+}
+
+post_upgrade() {
+  _bunni_extension_help
+}
+
+post_remove() {
+  cat <<'EOF'
+
+Bunni Download Manager was removed. If its unpacked extension is still shown
+in Chrome/Chromium, remove that entry from chrome://extensions. User settings
+and downloaded files were intentionally left untouched.
+EOF
+}
