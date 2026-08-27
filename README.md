@@ -58,7 +58,13 @@ The installer is written to `release/Bunni-Download-Manager-Setup-0.2.2.exe`. Th
 
 ## CachyOS / Arch Linux
 
-The repository includes a native `pacman` recipe and a prepared Linux x86-64 application archive. On CachyOS or Arch, build and install it as your normal user:
+Install the published x86-64 package directly with `pacman`:
+
+```bash
+sudo pacman -U https://github.com/Matei02355/bunni-download-manager/releases/download/v0.2.2/bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst
+```
+
+The repository also includes a native `pacman` recipe and prepared Linux application archive. To build it yourself on CachyOS or Arch:
 
 ```bash
 sudo pacman -S --needed base-devel

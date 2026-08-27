@@ -2,6 +2,14 @@
 
 Bunni can be built as a native `pacman` package on x86_64 CachyOS or Arch Linux. The desktop application is installed by `pacman`; its Chrome/Chromium extension is then loaded manually from the installed, read-only application files.
 
+## Install the published package
+
+```bash
+sudo pacman -U https://github.com/Matei02355/bunni-download-manager/releases/download/v0.2.2/bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst
+```
+
+Then run `bunni-extension-folder --chrome` and manually load `/usr/share/bunni-download-manager/extension` from `chrome://extensions`.
+
 This repository provides the Linux build recipe and CI job. A Linux package has not been built or validated by the Windows checkout that created these files; run the build on CachyOS/Arch or use the Linux CI artifact.
 
 ## Build the package
