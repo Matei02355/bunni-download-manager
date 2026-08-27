@@ -5,7 +5,9 @@ Bunni can be built as a native `pacman` package on x86_64 CachyOS or Arch Linux.
 ## Install the published package
 
 ```bash
-sudo pacman -U https://github.com/Matei02355/bunni-download-manager/releases/download/v0.2.2/bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst
+curl -fL --retry 5 -o bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst https://github.com/Matei02355/bunni-download-manager/releases/download/v0.2.2/bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst
+echo 'd485d05299aee17eb10ab570a18fc466d4e6a0d7f59895fcc0c7795dc8cdf657  bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst' | sha256sum -c -
+sudo pacman -U ./bunni-download-manager-0.2.2-1-x86_64.pkg.tar.zst
 ```
 
 Then run `bunni-extension-folder --chrome` and manually load `/usr/share/bunni-download-manager/extension` from `chrome://extensions`.
