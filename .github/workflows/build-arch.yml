@@ -22,11 +22,37 @@ jobs:
         shell: bash
         run: >-
           pacman -Syu --needed --noconfirm
+          alsa-lib
+          at-spi2-core
+          cairo
+          dbus
+          expat
+          gcc-libs
           git
+          glib2
+          glibc
+          gtk3
+          libcups
+          libdrm
           libsecret
+          libx11
+          libxcb
+          libxcomposite
+          libxdamage
+          libxext
+          libxfixes
+          libxkbcommon
+          libxrandr
+          libxss
+          mesa
+          nspr
+          nss
           nodejs
           npm
+          pango
           python
+          systemd-libs
+          xdg-utils
 
       - name: Check out source
         uses: actions/checkout@v6
