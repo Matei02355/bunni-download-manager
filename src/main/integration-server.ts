@@ -431,8 +431,9 @@ export class IntegrationServer {
     url.username = "";
     url.password = "";
     url.hash = "";
-    for (const name of url.searchParams.keys()) {
-      if (/^(?:access_?token|account_?token|auth|authorization|api_?key|password|passwd|secret|signature|sig|x-amz-(?:credential|signature|security-token))$/i.test(name)) {
+    const paramNames = Array.from(new Set(url.searchParams.keys()));
+    for (const name of paramNames) {
+      if (/^(?:token|access_?token|account_?token|auth|authorization|api_?key|password|passwd|secret|signature|sig|x-amz-(?:credential|signature|security-token))$/i.test(name)) {
         url.searchParams.set(name, "[redacted]");
       }
     }

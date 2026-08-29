@@ -1293,7 +1293,14 @@ export class DownloadManager extends EventEmitter {
           );
           continue;
         }
-        if (code === "EPERM" || code === "ENOSYS" || code === "EOPNOTSUPP") {
+        if (
+          code === "EPERM" ||
+          code === "ENOSYS" ||
+          code === "EOPNOTSUPP" ||
+          code === "EXDEV" ||
+          code === "EINVAL" ||
+          code === "ENOTSUP"
+        ) {
           try {
             await fs.copyFile(assembled, destination, fsConstants.COPYFILE_EXCL);
             return destination;
@@ -2549,14 +2556,6 @@ function parseContentRange(
   return { start, end, total };
 }
 
-function parseUnsatisfiedContentRange(value?: string): number | null {
-  if (!value) return null;
-  const match = /^bytes\s+\*\/(\d+)$/i.exec(value.trim());
-  if (!match) return null;
-  const total = Number(match[1]);
-  return Number.isSafeInteger(total) && total >= 0 ? total : null;
-}
-
 function parseNonNegativeInteger(value?: string): number | null {
   if (!value || !/^\d+$/.test(value.trim())) return null;
   const parsed = Number(value);
@@ -2860,7 +2859,8 @@ async function replaceFile(source: string, destination: string): Promise<void> {
     // Windows does not consistently allow rename() to replace an existing
     // file. The previous complete metadata generation is kept in .bak before
     // this fallback can overwrite the primary in place.
-    if (errorCode(error) !== "EEXIST" && errorCode(error) !== "EPERM") throw error;
+    const code = errorCode(error) ?? "";
+    if (!["EEXIST", "EPERM", "EACCES", "EBUSY"].includes(code)) throw error;
     await fs.copyFile(source, destination);
     await removeIfExists(source).catch(() => undefined);
   }
@@ -2897,7 +2897,8 @@ async function migratePartFile(source: string, destination: string): Promise<voi
       try {
         await fs.rename(temporary, destination);
       } catch (error) {
-        if (errorCode(error) !== "EEXIST" && errorCode(error) !== "EPERM") throw error;
+        const code = errorCode(error) ?? "";
+        if (!["EEXIST", "EPERM", "EACCES", "EBUSY"].includes(code)) throw error;
         await removeIfExists(destination);
         await fs.rename(temporary, destination);
       }

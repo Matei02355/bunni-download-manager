@@ -838,7 +838,7 @@ async function goFileCredentialHeaders(url, context = {}) {
   }
 
   const usable = cookies.filter(isUsableCookie);
-  if (!usable.some((cookie) => cookie.name === "accountToken" && cookie.value)) {
+  if (!usable.some((cookie) => cookie.name.toLowerCase() === "accounttoken" && cookie.value)) {
     throw goFileCredentialError(
       "No GoFile account credential was available for this exact link. Open the GoFile page in Chrome and try again.",
     );
