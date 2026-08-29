@@ -259,10 +259,6 @@ export class CaptureBroker<TRequest, TDownload extends CaptureDownload> {
           this.report(error);
         }
       }
-      if (entry.timer) {
-        clearTimeout(entry.timer);
-        entry.timer = undefined;
-      }
       this.entries.delete(entry.capture.id);
     }
   }

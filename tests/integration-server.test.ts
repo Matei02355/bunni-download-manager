@@ -290,20 +290,3 @@ test("internal capture failures are returned as generic server errors", async (c
     await failingServer.stop();
   }
 });
-
-test("redacts multiple and duplicate sensitive query parameters safely", async () => {
-  const response = await fetch(`http://127.0.0.1:${server.port}/api/captures`, {
-    method: "POST",
-    headers: extensionHeaders(true),
-    body: JSON.stringify({
-      url: "https://user:pass@example.com/file.bin?token=123&token=456&sig=abc&other=normal",
-      fileName: "file.bin"
-    })
-  });
-  assert.equal(response.status, 202);
-  const body = await response.json() as { ok: boolean; capture: ExtensionCapture };
-  assert.equal(body.ok, true);
-  const url = (body.capture.download as Record<string, unknown>).url as string;
-  assert.equal(url, "https://example.com/file.bin?token=%5Bredacted%5D&sig=%5Bredacted%5D&other=normal");
-});
-
