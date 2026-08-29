@@ -1460,6 +1460,35 @@ test("recovers queue metadata from the last complete backup", async () => {
   }
 });
 
+test("falls back to copying when hardlinking is unsupported (EXDEV)", async (context) => {
+  const source = patternedBuffer(32 * 1024);
+  const remote = await startNonRangeServer(source);
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "bunni-exdev-"));
+  const dataDir = path.join(root, "state");
+  const downloadDir = path.join(root, "downloads");
+  const manager = new DownloadManager({ dataDir, downloadDir, maxConcurrent: 1 });
+
+  const originalLink = fs.link;
+  context.mock.method(fs, "link", async () => {
+    const error = new Error("Cross-device link") as NodeJS.ErrnoException;
+    error.code = "EXDEV";
+    throw error;
+  });
+
+  try {
+    await manager.init();
+    const added = await manager.add({ url: remote.url, fileName: "exdev.bin" });
+    const completed = await waitForRecord(manager, added.id, (record) => record.status === "completed");
+    assert.equal(completed.status, "completed");
+    assert.deepEqual(await fs.readFile(completed.destination), source);
+  } finally {
+    await manager.shutdown();
+    await closeServer(remote.server);
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+
 function fakeCredentialProtection(): Pick<
   DownloadManagerOptions,
   "protectSensitiveHeaders" | "unprotectSensitiveHeaders"
