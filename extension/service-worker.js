@@ -5,6 +5,7 @@ const CAPTURE_STATUS_RETRY_BASE_MS = 2_000;
 const MAX_CAPTURE_STATUS_RETRIES = 3;
 const PENDING_CAPTURE_TIMEOUT_MS = 5 * 60_000;
 const RECOVERY_RETRY_MS = 15_000;
+const MAX_RECOVERY_RETRY_MS = 5 * 60_000;
 const PENDING_INTERCEPTIONS_KEY = "pendingInterceptions";
 const PENDING_CAPTURE_ALARM = "bunni-pending-captures";
 const GOFILE_PERMISSION = Object.freeze({
@@ -31,7 +32,7 @@ const CAPTURE_STATES = new Set(["pending", "accepted", "accepted-paused", "rejec
 const ACCEPTED_STATES = new Set(["accepted", "accepted-paused"]);
 const REJECTED_STATES = new Set(["rejected", "error"]);
 const interceptionInFlight = new Set();
-const pendingProcessing = new Set();
+const pendingProcessing = new Map();
 const recentInterceptions = new Map();
 const RECURSION_GUARD_MS = 4_000;
 let pendingInterceptionMutation = Promise.resolve();
@@ -59,6 +60,27 @@ chrome.downloads.onCreated.addListener((item) => {
     console.error("Bunni interception error", errorMessage(error));
   });
 });
+
+if (chrome.downloads?.onChanged?.addListener) {
+  chrome.downloads.onChanged.addListener((delta) => {
+    if (!Number.isInteger(delta?.id)) return;
+    const state = delta.state?.current;
+    const unpaused = delta.paused?.current === false;
+    if (state !== "complete" && state !== "interrupted" && !unpaused) return;
+    reconcilePendingChromeDownload(delta.id).catch((error) => {
+      console.warn("Bunni could not reconcile a changed Chrome download", errorMessage(error));
+    });
+  });
+}
+
+if (chrome.downloads?.onErased?.addListener) {
+  chrome.downloads.onErased.addListener((downloadId) => {
+    if (!Number.isInteger(downloadId)) return;
+    cleanupUnownedInterception(downloadId).catch((error) => {
+      console.warn("Bunni could not clean up an erased Chrome download", errorMessage(error));
+    });
+  });
+}
 
 if (chrome.alarms?.onAlarm?.addListener) {
   chrome.alarms.onAlarm.addListener((alarm) => {
@@ -395,11 +417,14 @@ async function interceptBrowserDownload(item) {
   const pendingRecord = {
     downloadId: item.id,
     captureId: "",
+    acceptedState: "",
     createdAt: now,
     deadlineAt: now + PENDING_CAPTURE_TIMEOUT_MS,
     nextPollAt: now,
     pollFailures: 0,
+    recoveryAttempts: 0,
     resolution: "resume",
+    notificationOutcome: "",
     label: safeFilename(item.filename) || "Chrome download",
     port: settings.port,
   };
@@ -416,6 +441,7 @@ async function interceptBrowserDownload(item) {
         "Chrome kept this download",
         "Bunni could not safely pause the original, so no confirmation was opened.",
         "error",
+        downloadNotificationId(item.id),
       );
       return;
     }
@@ -435,7 +461,9 @@ async function interceptBrowserDownload(item) {
     });
 
     if (result.capture.state === "pending") {
-      await showNotification(
+      await notifyPendingInterception(
+        item.id,
+        "awaiting-choice",
         "Choose in the Bunni app",
         `${pendingRecord.label} is paused in Chrome while Bunni waits for Start, Later, or Cancel.`,
         "success",
@@ -456,7 +484,9 @@ async function interceptBrowserDownload(item) {
     }
     const resumed = await resumePendingInterception(item.id);
     const goFileError = error?.code === GOFILE_ERROR_CODE;
-    await showNotification(
+    await notifyPendingInterception(
+      item.id,
+      goFileError ? "gofile-error" : "capture-error",
       goFileError ? "Chrome kept this GoFile download" : "Bunni is unavailable",
       resumed
         ? `Chrome resumed the original. ${errorMessage(error)}`
@@ -480,53 +510,117 @@ async function monitorPendingCapture(downloadId) {
 }
 
 async function pollPendingInterception(downloadId) {
-  if (pendingProcessing.has(downloadId)) return true;
-  pendingProcessing.add(downloadId);
+  const existing = pendingProcessing.get(downloadId);
+  if (existing) return existing;
+
+  // Coalesce the fast monitor, alarm, startup and worker-bootstrap paths. A Set
+  // allowed a second monitor to spin while the first poll was still updating
+  // storage; sharing the actual promise gives every caller the same result.
+  const operation = Promise.resolve().then(() => pollPendingInterceptionOnce(downloadId));
+  pendingProcessing.set(downloadId, operation);
   try {
-    const record = await getPendingInterception(downloadId);
-    if (!record) return false;
-
-    if (record.resolution === "cancel") {
-      await cancelPendingInterception(downloadId, "accepted");
-      return false;
-    }
-    if (record.resolution === "resume" || !record.captureId) {
-      await resumePendingInterception(downloadId);
-      return false;
-    }
-    if (Date.now() >= record.deadlineAt) {
-      await expirePendingInterception(record);
-      return false;
-    }
-
-    let capture;
-    try {
-      capture = await getCapture(record.captureId, record.port);
-    } catch {
-      const pollFailures = record.pollFailures + 1;
-      if (pollFailures <= MAX_CAPTURE_STATUS_RETRIES && Date.now() < record.deadlineAt) {
-        await updatePendingInterception(downloadId, {
-          pollFailures,
-          nextPollAt: Date.now() + CAPTURE_STATUS_RETRY_BASE_MS * (2 ** (pollFailures - 1)),
-          resolution: "awaiting",
-        });
-        return true;
-      }
-
-      await failPendingInterception(record);
-      return false;
-    }
-
-    return await applyCaptureDecision(downloadId, capture);
+    return await operation;
   } finally {
-    pendingProcessing.delete(downloadId);
+    if (pendingProcessing.get(downloadId) === operation) pendingProcessing.delete(downloadId);
     await schedulePendingAlarm().catch((error) => {
       console.warn("Bunni could not schedule capture recovery", errorMessage(error));
     });
   }
 }
 
+async function pollPendingInterceptionOnce(downloadId) {
+  let record = await getPendingInterception(downloadId);
+  if (!record) return false;
+
+  // Chrome is the source of truth for whether Bunni still owns the paused
+  // original. Closing Chrome, erasing history, finishing/interruption, or a
+  // manual resume all end that ownership and must be silent cleanup states.
+  if (!await reconcilePendingChromeDownload(downloadId, record)) return false;
+  record = await getPendingInterception(downloadId);
+  if (!record) return false;
+
+  if (record.resolution === "awaiting" && Date.now() >= record.deadlineAt) {
+    await expirePendingInterception(record);
+    return false;
+  }
+
+  // Every recovery route observes the persisted due time. This prevents the
+  // bootstrap + onStartup + alarm paths from consuming retries back-to-back.
+  if (Date.now() < record.nextPollAt) return true;
+
+  if (record.resolution === "cancel") {
+    await cancelPendingInterception(downloadId, record.acceptedState || "accepted");
+    return Boolean(await getPendingInterception(downloadId));
+  }
+  if (record.resolution === "resume" || !record.captureId) {
+    await resumePendingInterception(downloadId);
+    return Boolean(await getPendingInterception(downloadId));
+  }
+  let capture;
+  try {
+    capture = await getCapture(record.captureId, record.port);
+  } catch {
+    const pollFailures = record.pollFailures + 1;
+    if (pollFailures <= MAX_CAPTURE_STATUS_RETRIES && Date.now() < record.deadlineAt) {
+      await updatePendingInterception(downloadId, {
+        pollFailures,
+        nextPollAt: Date.now() + CAPTURE_STATUS_RETRY_BASE_MS * (2 ** (pollFailures - 1)),
+        resolution: "awaiting",
+      });
+      return true;
+    }
+
+    await failPendingInterception(record);
+    return false;
+  }
+
+  return await applyCaptureDecision(downloadId, capture);
+}
+
+async function reconcilePendingChromeDownload(downloadId, knownRecord = null) {
+  const record = knownRecord || await getPendingInterception(downloadId);
+  if (!record) return false;
+
+  let item;
+  try {
+    [item] = await chrome.downloads.search({ id: downloadId });
+  } catch {
+    // A shutdown-time API failure is not evidence that the original vanished.
+    // Keep the durable intent and retry it at the persisted backoff time.
+    return true;
+  }
+
+  if (record.resolution === "cancel") {
+    // Once Bunni accepted the transfer, an active Chrome copy must still be
+    // cancelled even if somebody unpaused it. Missing or terminal history no
+    // longer needs cleanup and can be forgotten quietly.
+    if (item?.state === "in_progress") return true;
+    await cleanupUnownedInterception(downloadId, record);
+    return false;
+  }
+
+  if (item?.state === "in_progress" && item.paused === true) return true;
+  await cleanupUnownedInterception(downloadId, record);
+  return false;
+}
+
+async function cleanupUnownedInterception(downloadId, knownRecord = null) {
+  const record = knownRecord || await getPendingInterception(downloadId);
+  if (!record) return false;
+
+  // Forget first so a slow/offline desktop cleanup cannot keep alarms alive.
+  // The capture broker has its own TTL, making DELETE strictly best-effort.
+  await forgetPendingInterception(downloadId);
+  if (record.captureId && record.resolution !== "cancel") {
+    await rejectCaptureBestEffort(record.captureId, record.port);
+  }
+  await schedulePendingAlarm().catch(() => undefined);
+  return true;
+}
+
 async function applyCaptureDecision(downloadId, capture) {
+  if (!await getPendingInterception(downloadId)) return false;
+
   if (capture.state === "pending") {
     await updatePendingInterception(downloadId, {
       nextPollAt: Date.now() + CAPTURE_POLL_INTERVAL_MS,
@@ -537,14 +631,21 @@ async function applyCaptureDecision(downloadId, capture) {
   }
 
   if (ACCEPTED_STATES.has(capture.state)) {
-    await updatePendingInterception(downloadId, { resolution: "cancel" });
+    await updatePendingInterception(downloadId, {
+      acceptedState: capture.state,
+      nextPollAt: Date.now(),
+      recoveryAttempts: 0,
+      resolution: "cancel",
+    });
     await cancelPendingInterception(downloadId, capture.state);
     return false;
   }
 
   if (REJECTED_STATES.has(capture.state)) {
     const resumed = await resumePendingInterception(downloadId);
-    await showNotification(
+    await notifyPendingInterception(
+      downloadId,
+      capture.state,
       capture.state === "rejected" ? "Download kept in Chrome" : "Bunni could not prepare the download",
       resumed
         ? "Chrome resumed the original download."
@@ -560,7 +661,15 @@ async function applyCaptureDecision(downloadId, capture) {
 }
 
 async function cancelPendingInterception(downloadId, acceptedState) {
-  await updatePendingInterception(downloadId, { resolution: "cancel" });
+  const record = await getPendingInterception(downloadId);
+  if (!record) return true;
+  const durableAcceptedState = ACCEPTED_STATES.has(acceptedState)
+    ? acceptedState
+    : (record.acceptedState || "accepted");
+  await updatePendingInterception(downloadId, {
+    acceptedState: durableAcceptedState,
+    resolution: "cancel",
+  });
   try {
     const [item] = await chrome.downloads.search({ id: downloadId });
     if (item?.state === "in_progress") {
@@ -571,22 +680,30 @@ async function cancelPendingInterception(downloadId, acceptedState) {
     });
     await forgetPendingInterception(downloadId);
     await showNotification(
-      acceptedState === "accepted-paused" ? "Saved for later in Bunni" : "Download started in Bunni",
-      acceptedState === "accepted-paused"
+      durableAcceptedState === "accepted-paused" ? "Saved for later in Bunni" : "Download started in Bunni",
+      durableAcceptedState === "accepted-paused"
         ? "Chrome's copy was removed; the download is paused in Bunni."
         : "Chrome's copy was removed after Bunni accepted it.",
       "success",
+      downloadNotificationId(downloadId),
     );
     return true;
   } catch {
-    const resumed = await resumePendingInterception(downloadId);
-    await showNotification(
+    const nextAttempt = record.recoveryAttempts + 1;
+    await updatePendingInterception(downloadId, {
+      acceptedState: durableAcceptedState,
+      nextPollAt: Date.now() + recoveryRetryDelay(nextAttempt),
+      recoveryAttempts: nextAttempt,
+      resolution: "cancel",
+    }).catch(() => undefined);
+    await notifyPendingInterception(
+      downloadId,
+      "cancel-failed",
       "Chrome could not remove its copy",
-      resumed
-        ? "The original Chrome download was resumed and may duplicate Bunni's copy."
-        : "Open Chrome Downloads to resolve the paused original.",
+      "Bunni kept its accepted download. Chrome will retry removing the paused original after the browser is available.",
       "error",
     );
+    await schedulePendingAlarm().catch(() => undefined);
     return false;
   }
 }
@@ -605,7 +722,9 @@ async function expirePendingInterception(record) {
   }
 
   const resumed = await resumePendingInterception(record.downloadId);
-  await showNotification(
+  await notifyPendingInterception(
+    record.downloadId,
+    "confirmation-timeout",
     "Bunni confirmation timed out",
     resumed
       ? "No choice was received in time, so Chrome resumed the original download."
@@ -628,7 +747,9 @@ async function failPendingInterception(record) {
   }
 
   const resumed = await resumePendingInterception(record.downloadId);
-  await showNotification(
+  await notifyPendingInterception(
+    record.downloadId,
+    "capture-status-failed",
     "Chrome resumed this download",
     resumed
       ? "Bunni stopped answering after several checks, so its confirmation was cancelled and Chrome kept the original."
@@ -646,18 +767,26 @@ async function rejectCaptureBestEffort(captureId, port) {
 }
 
 async function resumePendingInterception(downloadId) {
-  await updatePendingInterception(downloadId, {
-    resolution: "resume",
-    nextPollAt: Date.now() + RECOVERY_RETRY_MS,
-  }).catch(() => undefined);
+  const record = await getPendingInterception(downloadId);
+  const nextAttempt = (record?.recoveryAttempts || 0) + 1;
 
   const resumed = await ensureChromeDownloadResumed(downloadId);
   if (resumed) {
     await forgetPendingInterception(downloadId).catch(() => undefined);
   } else {
+    await updatePendingInterception(downloadId, {
+      nextPollAt: Date.now() + recoveryRetryDelay(nextAttempt),
+      recoveryAttempts: nextAttempt,
+      resolution: "resume",
+    }).catch(() => undefined);
     await schedulePendingAlarm().catch(() => undefined);
   }
   return resumed;
+}
+
+function recoveryRetryDelay(attempt) {
+  const exponent = Math.max(0, Math.min(8, Number(attempt) - 1));
+  return Math.min(MAX_RECOVERY_RETRY_MS, RECOVERY_RETRY_MS * (2 ** exponent));
 }
 
 async function ensureChromeDownloadResumed(downloadId) {
@@ -732,11 +861,14 @@ function normalizePendingRecords(value) {
       records[String(downloadId)] = sanitizePendingRecord({
         downloadId,
         captureId: "",
+        acceptedState: "",
         createdAt: now,
         deadlineAt: now,
         nextPollAt: now,
         pollFailures: 0,
+        recoveryAttempts: 0,
         resolution: "resume",
+        notificationOutcome: "",
         label: "Chrome download",
         port: DEFAULT_SETTINGS.port,
       });
@@ -759,15 +891,22 @@ function sanitizePendingRecord(record) {
   return {
     downloadId: record.downloadId,
     captureId: typeof record.captureId === "string" ? record.captureId.slice(0, 200) : "",
+    acceptedState: ACCEPTED_STATES.has(record.acceptedState) ? record.acceptedState : "",
     createdAt,
     deadlineAt,
     nextPollAt: finiteTimestamp(record.nextPollAt, now),
     pollFailures: Number.isInteger(record.pollFailures) && record.pollFailures >= 0
       ? Math.min(record.pollFailures, MAX_CAPTURE_STATUS_RETRIES + 1)
       : 0,
+    recoveryAttempts: Number.isInteger(record.recoveryAttempts) && record.recoveryAttempts >= 0
+      ? Math.min(record.recoveryAttempts, 1_000)
+      : 0,
     resolution: ["awaiting", "cancel", "resume"].includes(record.resolution)
       ? record.resolution
       : "resume",
+    notificationOutcome: typeof record.notificationOutcome === "string"
+      ? record.notificationOutcome.replace(/[^a-z0-9:_-]/gi, "").slice(0, 64)
+      : "",
     label: safeFilename(record.label) || "Chrome download",
     port: clampPort(record.port),
   };
@@ -787,8 +926,9 @@ async function schedulePendingAlarm() {
 
   const now = Date.now();
   const nextAt = Math.min(...records.map((record) => {
-    if (record.resolution !== "awaiting") return now + 1_000;
-    return Math.min(record.nextPollAt, record.deadlineAt);
+    return record.resolution === "awaiting"
+      ? Math.min(record.nextPollAt, record.deadlineAt)
+      : record.nextPollAt;
   }));
   chrome.alarms.create(PENDING_CAPTURE_ALARM, { when: Math.max(now + 1_000, nextAt) });
 }
@@ -897,15 +1037,36 @@ function publicDownloadRecord(value) {
   return safe;
 }
 
-async function showNotification(title, message, kind) {
+async function notifyPendingInterception(downloadId, outcome, title, message, kind) {
+  const record = await getPendingInterception(downloadId).catch(() => null);
+  if (record?.notificationOutcome === outcome) return false;
+  if (record) {
+    // Persist before displaying. If Chrome stops the worker immediately after
+    // create(), recovery will not emit the same lifecycle outcome again.
+    await updatePendingInterception(downloadId, { notificationOutcome: outcome }).catch(() => undefined);
+  }
+  await showNotification(title, message, kind, downloadNotificationId(downloadId));
+  return true;
+}
+
+function downloadNotificationId(downloadId) {
+  return `bunni-download-${downloadId}`;
+}
+
+async function showNotification(title, message, kind, notificationId = "") {
   try {
-    await chrome.notifications.create({
+    const options = {
       type: "basic",
       iconUrl: "icons/icon128.png",
       title,
       message: truncate(message, 220),
       priority: kind === "error" ? 2 : 0,
-    });
+    };
+    if (notificationId) {
+      await chrome.notifications.create(notificationId, options);
+    } else {
+      await chrome.notifications.create(options);
+    }
   } catch (error) {
     console.warn("Bunni notification could not be displayed", errorMessage(error));
   }

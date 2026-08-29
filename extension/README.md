@@ -1,6 +1,6 @@
 # Bunni Download Manager — Chrome extension
 
-Current extension version: **1.2.2**.
+Current extension version: **1.2.3**.
 
 This original Manifest V3 extension sends HTTP and HTTPS links to the local Bunni desktop service on `127.0.0.1`. Port `17865` is the default.
 
@@ -29,7 +29,7 @@ No build step is required. The checked-in PNG icons can be regenerated with `nod
 - Supports credential-protected GoFile downloads after the user explicitly chooses **Enable GoFile support** in extension Options.
 - Detects an open GoFile tab when access is missing and offers a one-click, GoFile-only permission button. After permission is granted, return to the page and click its **Download** button again.
 
-Automatic interception is deliberately conservative. The extension waits at most five minutes for a desktop choice and uses a persisted capture-to-Chrome mapping plus a Chrome alarm, so an MV3 worker restart can continue the decision. Temporary status failures use three persisted, backoff-delayed retries; if all fail, the extension best-effort rejects the desktop capture before restoring Chrome. A pre-capture restart, invalid response, rejected/error state, unavailable app, or timeout restores Chrome’s original. A persisted terminal acceptance finishes cancelling Chrome after a restart. Browser credentials are not copied for ordinary sites, and credentials are never stored in the recovery mapping.
+Automatic interception is deliberately conservative. The extension waits at most five minutes for a desktop choice and uses a persisted capture-to-Chrome mapping plus a Chrome alarm, so an MV3 worker restart can continue the decision. Temporary status and Chrome API failures use persisted, backoff-delayed retries; startup, worker-bootstrap, and alarm recovery share one poll and honor its saved due time. If Chrome’s original is erased, finishes, is interrupted, or is manually resumed, Bunni quietly rejects any still-pending confirmation and removes the stale recovery record. A pre-capture restart, invalid response, rejected/error state, unavailable app, or timeout restores Chrome’s original. Once Bunni accepts a transfer, that decision remains durable and Chrome’s duplicate is cancelled after restart rather than being resumed. Automatic lifecycle notifications reuse one stable ID per Chrome download, so recovery cannot stack copies of the same result. Browser credentials are not copied for ordinary sites, and credentials are never stored in the recovery mapping.
 
 Only `http://` and `https://` URLs are accepted. The extension always has host access only to HTTP ports on the `127.0.0.1` loopback address. It declares optional access only for `https://gofile.io/*` and `https://*.gofile.io/*`; Chrome grants that access only after the user clicks the button in Options. It never requests all-sites access.
 

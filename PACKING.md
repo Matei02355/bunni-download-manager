@@ -22,8 +22,8 @@ Reusing this key preserves the extension ID and update identity. Never publish, 
 
 ## Generated artifacts
 
-- `release\Bunni-Extension-1.2.2.crx` — Chrome CRX3 package
-- `release\Bunni-Extension-1.2.2.zip` — ZIP package for inspection or Chrome Web Store upload
+- `release\Bunni-Extension-1.2.3.crx` — Chrome CRX3 package
+- `release\Bunni-Extension-1.2.3.zip` — ZIP package for inspection or Chrome Web Store upload
 - `private\Bunni-Extension.pem` — private update key; keep secret and backed up
 
 Packed extension ID: `phdgcjnonmnoblhcdpjmebhkgceklgkc`

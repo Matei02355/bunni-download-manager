@@ -135,7 +135,13 @@ function createHarness(options: {
     },
     extension: { inIncognitoContext: false },
     notifications: {
-      async create(notification: { title: string; message: string }) {
+      async create(
+        idOrNotification: string | { title: string; message: string },
+        maybeNotification?: { title: string; message: string },
+      ) {
+        const notification = typeof idOrNotification === "string"
+          ? maybeNotification!
+          : idOrNotification;
         notifications.push(notification);
       },
     },
@@ -243,6 +249,8 @@ async function beginPendingCapture(harness: ReturnType<typeof createHarness>, it
   const records = harness.localState.pendingInterceptions as Record<string, PendingRecord>;
   assert.equal(records[String(item.id)]?.captureId, CAPTURE_ID);
   assert.equal(records[String(item.id)]?.resolution, "awaiting");
+  // Direct poll calls in these unit tests represent a due alarm/monitor tick.
+  records[String(item.id)].nextPollAt = 0;
 }
 
 test("fresh installs enable click-to-confirm while an existing off choice is preserved", async () => {
@@ -342,6 +350,7 @@ test("a transient capture-status failure keeps Chrome paused and recovers", asyn
   assert.equal(records["42"].pollFailures, 1);
 
   harness.setCaptureState("accepted");
+  records["42"].nextPollAt = 0;
   await harness.context.pollPendingInterception(42);
   assert.equal(harness.calls.cancel, 1);
   assert.equal(harness.calls.resume, 0);

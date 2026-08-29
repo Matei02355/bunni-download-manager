@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Bunni Download Manager",
   "short_name": "Bunni",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Confirm links and browser downloads in the local Bunni Download Manager app.",
   "permissions": [
     "activeTab",

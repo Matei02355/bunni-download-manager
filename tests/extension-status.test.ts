@@ -202,7 +202,7 @@ test("extension manifest keeps permissions narrow and exposes the diagnostic pop
   const manifest = JSON.parse(readFileSync("extension/manifest.json", "utf8")) as Record<string, unknown>;
   const popupHtml = readFileSync("extension/popup.html", "utf8");
 
-  assert.equal(manifest.version, "1.2.2");
+  assert.equal(manifest.version, "1.2.3");
   assert.deepEqual(manifest.host_permissions, ["http://127.0.0.1/*"]);
   assert.deepEqual(manifest.optional_permissions, ["cookies"]);
   assert.deepEqual(manifest.optional_host_permissions, [
